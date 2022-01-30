@@ -11,10 +11,16 @@ const int voltageReadPin = A0;
  * between AREF and GND, * 1000.
  */
 /* Arduino UNO dev board */
-const long InternalReferenceVoltage = 1105L;
+const long InternalReferenceVoltage = 1109L;
+
+LiquidCrystal_I2C lcd(0x27,16,2);
 
 void setup() {
   // put your setup code here, to run once:
+
+  lcd.init();
+  lcd.clear();
+  lcd.backlight();
 
   pinMode(wakeUpPin, INPUT_PULLUP);
   pinMode(pumpRelayPin, OUTPUT);
@@ -41,8 +47,9 @@ void loop() {
     fillTank();
   }
 
-  manualLowPowerMode(1);
+  /* manualLowPowerMode(1); */
 
+  delay(1000);
 
   // Read sensor here? We were woken up on an interrupt presumably triggered
   // by the sensor, but it's cheap to reread here.
@@ -58,7 +65,20 @@ void loop() {
 }
 
 void displayBandgap(int bandGap) {
-  
+  // Uses slow division, don't this function except for debugging
+
+  int voltInt = bandGap / 100;
+  int voltFrac = bandGap % 100;
+
+  char voltage[16];
+  snprintf(voltage, 16, "%d.%dv", (int)voltInt, (int)voltFrac);
+
+  lcd.setCursor(2,0);
+  lcd.print("Supply voltage:");
+  lcd.setCursor(2,1);
+  lcd.print("     ");           /* clear the line */
+  lcd.setCursor(2,1);
+  lcd.print(voltage);
 }
 
 int waterLevelLow() {
