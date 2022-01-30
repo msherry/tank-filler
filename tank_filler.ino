@@ -1,8 +1,17 @@
+
+#include <LiquidCrystal_I2C.h>
 #include <LowPower.h>
 
 const int wakeUpPin = 2;
 const int pumpRelayPin = 3;
 const int voltageReadPin = A0;
+
+/* This value is unique to each board, or at least each board family. Make a
+ * measurement using the included sample program across a .1uF cap connected
+ * between AREF and GND, * 1000.
+ */
+/* Arduino UNO dev board */
+const long InternalReferenceVoltage = 1105L;
 
 void setup() {
   // put your setup code here, to run once:
@@ -18,11 +27,22 @@ void loop() {
   // Either power-down via interrupt and have a low water level trigger said
   // interrupt, or poll every 8 seconds for water level. Interrupt sounds
   // better for power saving.
-  
-  // https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/
-  attachInterrupt(digitalPinToInterrupt(wakeUpPin), wakeUp, LOW);
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-  detachInterrupt(digitalPinToInterrupt(wakeUpPin));
+
+  // From https://docs.arduino.cc/learn/electronics/low-power
+  int bandGap = getBandgap();
+
+  displayBandgap(bandGap);
+
+  if (bandGap < 300) {
+    lowBatteryWarning();
+  }
+
+  if (waterLevelLow()) {
+    fillTank();
+  }
+
+  manualLowPowerMode(1);
+
 
   // Read sensor here? We were woken up on an interrupt presumably triggered
   // by the sensor, but it's cheap to reread here.
@@ -34,9 +54,84 @@ void loop() {
   // do something on low voltage:
   // a) light LED? at 20mA, a 2000-3000 AA battery at low capacity won't last long
   // b) intermittently beep buzzer? Good, but how to keep intermittent operation during powerDown?
+
+}
+
+void displayBandgap(int bandGap) {
   
+}
+
+int waterLevelLow() {
+  return 0;
+}
+
+void fillTank() {
+
+}
+
+int getBandgap() {
+  // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
+
+  // REFS0: Selects AVcc external reference
+  // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
+  ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1);
+  ADCSRA |= bit(ADSC);  // start conversion
+  while (ADCSRA & bit(ADSC)) {
+  }  // wait for conversion to complete
+  int results = (((InternalReferenceVoltage * 1024) / ADC) + 5) / 10;
+  return results;
+}
+
+void lowBatteryWarning() {
+
+}
+
+void manualLowPowerMode(uint8_t multiplier) {
+  delay(70);  // Requires at least 68ms of buffer head time for module booting time
+  for (int i=0; i<multiplier; i++) {
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
 }
 
 void wakeUp() {
   // Empty interrupt handler
 }
+
+
+// Reference
+// Find internal 1.1 reference voltage on AREF pin (external cap needed from AREF to GND)
+/* void setup () */
+/* { */
+/*   ADMUX = bit (REFS0) | bit (REFS1); */
+/* } */
+
+/* void loop () { } */
+
+
+// Measure input voltage
+/* void setup( void ) */
+/* { */
+/*   Serial.begin( 38400 ); */
+/*   Serial.println( "\r\n\r\n" ); */
+
+/*   // REFS1 REFS0          --> 0 0 AREF, Internal Vref turned off */
+/*   // MUX3 MUX2 MUX1 MUX0  --> 1110 1.1V (VBG) */
+/*   ADMUX = (0<<REFS1) | (0<<REFS0) | (0<<ADLAR) | (1<<MUX3) | (1<<MUX2) | (1<<MUX1) | (0<<MUX0); */
+/* } */
+
+/* void loop( void ) */
+/* { */
+/*   int value; */
+
+/*   // Start a conversion */
+/*   ADCSRA |= _BV( ADSC ); */
+
+/*   // Wait for it to complete */
+/*   while( ( (ADCSRA & (1<<ADSC)) != 0 ) ); */
+
+/*   // Scale the value */
+/*   value = (((InternalReferenceVoltage * 1024L) / ADC) + 5L) / 10L; */
+
+/*   Serial.println( value ); */
+/*   delay( 1000 ); */
+/* } */
