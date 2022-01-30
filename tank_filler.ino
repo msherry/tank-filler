@@ -2,9 +2,9 @@
 #include <LiquidCrystal_I2C.h>
 #include <LowPower.h>
 
-const int wakeUpPin = 2;
+const int arefEnablePin = 2;
 const int pumpRelayPin = 3;
-const int voltageReadPin = A0;
+
 
 /* This value is unique to each board, or at least each board family. Make a
  * measurement using the included sample program across a .1uF cap connected
@@ -15,6 +15,8 @@ const long InternalReferenceVoltage = 1109L;
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 
+int displayCount = 0;           /* visual indication that we're running */
+
 void setup() {
   // put your setup code here, to run once:
 
@@ -22,9 +24,9 @@ void setup() {
   lcd.clear();
   lcd.backlight();
 
-  pinMode(wakeUpPin, INPUT_PULLUP);
+  pinMode(arefEnablePin, OUTPUT);
   pinMode(pumpRelayPin, OUTPUT);
-  pinMode(voltageReadPin, INPUT);
+  digitalWrite(arefEnablePin, HIGH);
 }
 
 void loop() {
@@ -71,7 +73,7 @@ void displayBandgap(int bandGap) {
   int voltFrac = bandGap % 100;
 
   char voltage[16];
-  snprintf(voltage, 16, "%d.%dv", (int)voltInt, (int)voltFrac);
+  snprintf(voltage, 16, "%d.%02dv", (int)voltInt, (int)voltFrac);
 
   lcd.setCursor(2,0);
   lcd.print("Supply voltage:");
@@ -79,6 +81,10 @@ void displayBandgap(int bandGap) {
   lcd.print("     ");           /* clear the line */
   lcd.setCursor(2,1);
   lcd.print(voltage);
+  lcd.setCursor(2,2);
+  lcd.print(displayCount);
+
+  displayCount++;
 }
 
 int waterLevelLow() {
@@ -92,9 +98,15 @@ void fillTank() {
 int getBandgap() {
   // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
 
-  // REFS0: Selects AVcc external reference
+  // REFS0 of: Selects AREF, internal VRef turned off
+  // REFS0 on: Selects AVcc reference, with external cap at AREF
   // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
-  ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1);
+
+  // Internal AREF
+  /* ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1); */
+  // External AREF
+  ADMUX = bit(MUX3) | bit(MUX2) | bit(MUX1);
+
   ADCSRA |= bit(ADSC);  // start conversion
   while (ADCSRA & bit(ADSC)) {
   }  // wait for conversion to complete
