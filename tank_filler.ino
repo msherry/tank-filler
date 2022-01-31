@@ -22,10 +22,14 @@ void setup() {
 
   lcd.init();
   lcd.clear();
-  lcd.backlight();
+  /* lcd.backlight(); */
+  lcd.noBacklight();
+
 
   pinMode(arefEnablePin, OUTPUT);
   pinMode(pumpRelayPin, OUTPUT);
+
+  // Connect AREF directly to our (unregulated) input voltage
   digitalWrite(arefEnablePin, HIGH);
 }
 
@@ -49,9 +53,9 @@ void loop() {
     fillTank();
   }
 
-  /* manualLowPowerMode(1); */
+  manualLowPowerMode(1);
 
-  delay(1000);
+  /* delay(1000); */
 
   // Read sensor here? We were woken up on an interrupt presumably triggered
   // by the sensor, but it's cheap to reread here.
@@ -81,8 +85,13 @@ void displayBandgap(int bandGap) {
   lcd.print("     ");           /* clear the line */
   lcd.setCursor(2,1);
   lcd.print(voltage);
+
+  char uptime[8];
+  int seconds = displayCount * 8; /* account for the 8s sleeps */
+  snprintf(uptime, 8, "%d:%02d", (int)seconds / 60, (int)seconds % 60);
+
   lcd.setCursor(2,2);
-  lcd.print(displayCount);
+  lcd.print(uptime);
 
   displayCount++;
 }
@@ -167,3 +176,14 @@ void wakeUp() {
 /*   Serial.println( value ); */
 /*   delay( 1000 ); */
 /* } */
+
+/*
+/dev/cu.usbmodel1421 - Arduino UNO, right usb port
+/dev/cu.usbmodel1411 - Arduino UNO, left usb port
+/dev/cu/wchusbserial1420 - Arduino NANO, right usb port
+*/
+
+/* Local Variables: */
+/* arduino-cli-default-port: "/dev/cu/wchusbserial1420" */
+/* arduino-cli-default-fqbn: "arduino:avr:nano" */
+/* End: */
