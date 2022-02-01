@@ -3,7 +3,9 @@
 #include <LowPower.h>
 
 const int arefEnablePin = 2;
-const int pumpRelayPin = 3;
+const int sensorHighInputPin = 3;
+const int sensorLowInputPin = 4;
+const int pumpEnablePin = 5;
 
 
 /* This value is unique to each board, or at least each board family. Make a
@@ -25,9 +27,11 @@ void setup() {
   /* lcd.backlight(); */
   lcd.noBacklight();
 
+  // Ensure pump is off before setting pin as an output
+  pumpOff();
 
   pinMode(arefEnablePin, OUTPUT);
-  pinMode(pumpRelayPin, OUTPUT);
+  pinMode(pumpEnablePin, OUTPUT);
 
   // Connect AREF directly to our (unregulated) input voltage
   digitalWrite(arefEnablePin, HIGH);
@@ -55,8 +59,6 @@ void loop() {
 
   manualLowPowerMode(1);
 
-  /* delay(1000); */
-
   // Read sensor here? We were woken up on an interrupt presumably triggered
   // by the sensor, but it's cheap to reread here.
 
@@ -77,7 +79,7 @@ void displayBandgap(int bandGap) {
   int voltFrac = bandGap % 100;
 
   char voltage[16];
-  snprintf(voltage, 16, "%d.%02dv", (int)voltInt, (int)voltFrac);
+  snprintf(voltage, 16, "%d.%02dv", voltInt, voltFrac);
 
   lcd.setCursor(2,0);
   lcd.print("Supply voltage:");
@@ -86,9 +88,21 @@ void displayBandgap(int bandGap) {
   lcd.setCursor(2,1);
   lcd.print(voltage);
 
-  char uptime[8];
-  int seconds = displayCount * 8; /* account for the 8s sleeps */
-  snprintf(uptime, 8, "%d:%02d", (int)seconds / 60, (int)seconds % 60);
+  char uptime[10];
+  unsigned long secs;
+  unsigned int hours, mins;
+
+  secs = displayCount * 8; /* account for the 8s sleeps */
+  hours = secs % 3600;
+  secs -= hours * 3600;
+  mins = secs / 60;
+  secs -= mins * 60;
+
+  if (hours) {
+    snprintf(uptime, 10, "%d:%d:%02d", hours, mins, secs);
+  } else {
+    snprintf(uptime, 10, "%d:%02d", mins, secs);
+  }
 
   lcd.setCursor(2,2);
   lcd.print(uptime);
@@ -102,6 +116,16 @@ int waterLevelLow() {
 
 void fillTank() {
 
+}
+
+void pumpOn() {
+  Serial.println("Pump on");
+  digitalWrite(pumpEnablePin, HIGH);
+}
+
+void pumpOff() {
+  Serial.println("Pump off");
+  digitalWrite(pumpEnablePin, LOW);
 }
 
 int getBandgap() {
