@@ -89,19 +89,18 @@ void displayBandgap(int bandGap) {
   lcd.print(voltage);
 
   char uptime[10];
-  unsigned long secs;
-  unsigned int hours, mins;
+  unsigned long seconds = displayCount * 8; /* account for the 8s sleeps */
+  int hours, mins;
 
-  secs = displayCount * 8; /* account for the 8s sleeps */
-  hours = secs % 3600;
-  secs -= hours * 3600;
-  mins = secs / 60;
-  secs -= mins * 60;
+  hours = seconds / 3600;
+  seconds %= 3600;
+  mins = seconds / 60;
+  seconds = seconds % 60;
 
   if (hours) {
-    snprintf(uptime, 10, "%d:%d:%02d", hours, mins, secs);
+    snprintf(uptime, 10, "%u:%02u:%02u", hours, mins, seconds);
   } else {
-    snprintf(uptime, 10, "%d:%02d", mins, secs);
+    snprintf(uptime, 10, "%02u:%02u", mins, seconds);
   }
 
   lcd.setCursor(2,2);
@@ -202,12 +201,12 @@ void wakeUp() {
 /* } */
 
 /*
-/dev/cu.usbmodel1421 - Arduino UNO, right usb port
-/dev/cu.usbmodel1411 - Arduino UNO, left usb port
+/dev/cu.usbmodem1421 - Arduino UNO, right usb port
+/dev/cu.usbmodem1411 - Arduino UNO, left usb port
 /dev/cu/wchusbserial1420 - Arduino NANO, right usb port
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu/wchusbserial1420" */
-/* arduino-cli-default-fqbn: "arduino:avr:nano" */
+/* arduino-cli-default-port: "/dev/cu.usbmodem1421" */
+/* arduino-cli-default-fqbn: "arduino:avr:uno" */
 /* End: */
