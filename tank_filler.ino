@@ -1,11 +1,13 @@
 
 #include <LiquidCrystal_I2C.h>
 #include <LowPower.h>
+#include <Wire.h>
 
 const int arefEnablePin = 2;
 const int sensorHighInputPin = 3;
 const int sensorLowInputPin = 4;
 const int pumpEnablePin = 5;
+const int alarmPin = 6;
 
 
 /* This value is unique to each board, or at least each board family. Make a
@@ -24,17 +26,22 @@ void setup() {
 
   lcd.init();
   lcd.clear();
-  /* lcd.backlight(); */
-  lcd.noBacklight();
+  lcd.backlight();
+  // lcd.noBacklight();
 
   // Ensure pump is off before setting pin as an output
   pumpOff();
 
   pinMode(arefEnablePin, OUTPUT);
+  pinMode(sensorHighInputPin, INPUT_PULLUP);
+  pinMode(sensorLowInputPin, INPUT_PULLUP);
   pinMode(pumpEnablePin, OUTPUT);
+  pinMode(alarmPin, OUTPUT);
 
   // Connect AREF directly to our (unregulated) input voltage
   digitalWrite(arefEnablePin, HIGH);
+
+  Serial.begin(9600);
 }
 
 void loop() {
@@ -47,13 +54,13 @@ void loop() {
   // From https://docs.arduino.cc/learn/electronics/low-power
   int bandGap = getBandgap();
 
-  displayBandgap(bandGap);
+  // displayBandgap(bandGap);
 
   if (bandGap < 300) {
     lowBatteryWarning();
   }
 
-  if (waterLevelLow()) {
+  if (waterTooLow()) {
     fillTank();
   }
 
@@ -65,7 +72,7 @@ void loop() {
   // Start pump, stop when high water lever sensor trips.
 
   // Check battery voltage (through voltage divider,
-  // see https://forum.arduino.cc/t/low-battery-warning/360639/7 ),
+  // see  ),
   // do something on low voltage:
   // a) light LED? at 20mA, a 2000-3000 AA battery at low capacity won't last long
   // b) intermittently beep buzzer? Good, but how to keep intermittent operation during powerDown?
@@ -89,8 +96,8 @@ void displayBandgap(int bandGap) {
   lcd.print(voltage);
 
   char uptime[10];
-  unsigned long seconds = displayCount * 8; /* account for the 8s sleeps */
-  int hours, mins;
+  unsigned long seconds = millis() / 1000; 
+  unsigned int hours, mins;
 
   hours = seconds / 3600;
   seconds %= 3600;
@@ -98,9 +105,9 @@ void displayBandgap(int bandGap) {
   seconds = seconds % 60;
 
   if (hours) {
-    snprintf(uptime, 10, "%u:%02u:%02u", hours, mins, seconds);
+    snprintf(uptime, 10, "%u:%02u:%02lu", hours, mins, seconds);
   } else {
-    snprintf(uptime, 10, "%02u:%02u", mins, seconds);
+    snprintf(uptime, 10, "%02u:%02lu", mins, seconds);
   }
 
   lcd.setCursor(2,2);
@@ -109,12 +116,32 @@ void displayBandgap(int bandGap) {
   displayCount++;
 }
 
-int waterLevelLow() {
-  return 0;
+int waterTooLow() {
+  // Return a 1 if the tank needs water added, 0 otherwise
+  return !waterAtLowLevel();
+}
+
+int tankFull() {
+  // Return a 1 if the tank is full (and we should stop the pump), 0 otherwise
+  return waterAtHighLevel();
+}
+
+int waterAtHighLevel() {
+  // Return a 1 if the water is at/above the HIGH level sensor, 0 otherwise
+  return digitalRead(sensorHighInputPin);
+}
+
+int waterAtLowLevel() {
+  // Return a 1 if the water is at/above the LOW level sensor, 0 otherwise
+  return digitalRead(sensorLowInputPin);
 }
 
 void fillTank() {
-
+  pumpOn();
+  while(!tankFull()) {
+    delay(1000);
+  }
+  pumpOff();
 }
 
 void pumpOn() {
@@ -128,9 +155,11 @@ void pumpOff() {
 }
 
 int getBandgap() {
+  // https://forum.arduino.cc/t/low-battery-warning/360639/7
+
   // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
 
-  // REFS0 of: Selects AREF, internal VRef turned off
+  // REFS0 off: Selects AREF, internal VRef turned off
   // REFS0 on: Selects AVcc reference, with external cap at AREF
   // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
 
@@ -153,7 +182,7 @@ void lowBatteryWarning() {
 void manualLowPowerMode(uint8_t multiplier) {
   delay(70);  // Requires at least 68ms of buffer head time for module booting time
   for (int i=0; i<multiplier; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
   }
 }
 
