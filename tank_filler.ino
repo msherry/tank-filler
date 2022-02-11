@@ -32,6 +32,9 @@ void setup() {
   // Ensure pump is off before setting pin as an output
   pumpOff();
 
+  // Alarm off
+  digitalWrite(alarmPin, LOW);
+
   pinMode(arefEnablePin, OUTPUT);
   pinMode(sensorHighInputPin, INPUT_PULLUP);
   pinMode(sensorLowInputPin, INPUT_PULLUP);
@@ -53,7 +56,6 @@ void loop() {
 
   // From https://docs.arduino.cc/learn/electronics/low-power
   int bandGap = getBandgap();
-
   // displayBandgap(bandGap);
 
   if (bandGap < 300) {
@@ -65,18 +67,83 @@ void loop() {
   }
 
   manualLowPowerMode(1);
+}
 
-  // Read sensor here? We were woken up on an interrupt presumably triggered
-  // by the sensor, but it's cheap to reread here.
+int waterTooLow() {
+  // Return a 1 if the tank needs water added, 0 otherwise
+  return !waterAtLowLevel();
+}
 
-  // Start pump, stop when high water lever sensor trips.
+int tankFull() {
+  // Return a 1 if the tank is full (and we should stop the pump), 0 otherwise
+  return waterAtHighLevel();
+}
 
-  // Check battery voltage (through voltage divider,
-  // see  ),
-  // do something on low voltage:
-  // a) light LED? at 20mA, a 2000-3000 AA battery at low capacity won't last long
-  // b) intermittently beep buzzer? Good, but how to keep intermittent operation during powerDown?
+int waterAtHighLevel() {
+  // Return a 1 if the water is at/above the HIGH level sensor, 0 otherwise
+  return digitalRead(sensorHighInputPin);
+}
 
+int waterAtLowLevel() {
+  // Return a 1 if the water is at/above the LOW level sensor, 0 otherwise
+  return digitalRead(sensorLowInputPin);
+}
+
+void fillTank() {
+  pumpOn();
+  while(!tankFull()) {
+    delay(1000);
+  }
+  pumpOff();
+}
+
+void pumpOn() {
+  // Serial.println("Pump on");
+  digitalWrite(pumpEnablePin, HIGH);
+}
+
+void pumpOff() {
+  // Serial.println("Pump off");
+  digitalWrite(pumpEnablePin, LOW);
+}
+
+void lowBatteryWarning() {
+  digitalWrite(alarmPin, HIGH);
+  delay(10);
+  digitalWrite(alarmPin, LOW);
+}
+
+void manualLowPowerMode(uint8_t multiplier) {
+  delay(70);  // Requires at least 68ms of buffer head time for module booting time
+  for (int i=0; i<multiplier; i++) {
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
+}
+
+void wakeUp() {
+  // Empty interrupt handler
+}
+
+
+int getBandgap() {
+  // https://forum.arduino.cc/t/low-battery-warning/360639/7
+
+  // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
+
+  // REFS0 off: Selects AREF, internal VRef turned off
+  // REFS0 on: Selects AVcc reference, with external cap at AREF
+  // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
+
+  // Internal AREF
+  /* ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1); */
+  // External AREF
+  ADMUX = bit(MUX3) | bit(MUX2) | bit(MUX1);
+
+  ADCSRA |= bit(ADSC);  // start conversion
+  while (ADCSRA & bit(ADSC)) {
+  }  // wait for conversion to complete
+  int results = (((InternalReferenceVoltage * 1024) / ADC) + 5) / 10;
+  return results;
 }
 
 void displayBandgap(int bandGap) {
@@ -115,81 +182,6 @@ void displayBandgap(int bandGap) {
 
   displayCount++;
 }
-
-int waterTooLow() {
-  // Return a 1 if the tank needs water added, 0 otherwise
-  return !waterAtLowLevel();
-}
-
-int tankFull() {
-  // Return a 1 if the tank is full (and we should stop the pump), 0 otherwise
-  return waterAtHighLevel();
-}
-
-int waterAtHighLevel() {
-  // Return a 1 if the water is at/above the HIGH level sensor, 0 otherwise
-  return digitalRead(sensorHighInputPin);
-}
-
-int waterAtLowLevel() {
-  // Return a 1 if the water is at/above the LOW level sensor, 0 otherwise
-  return digitalRead(sensorLowInputPin);
-}
-
-void fillTank() {
-  pumpOn();
-  while(!tankFull()) {
-    delay(1000);
-  }
-  pumpOff();
-}
-
-void pumpOn() {
-  Serial.println("Pump on");
-  digitalWrite(pumpEnablePin, HIGH);
-}
-
-void pumpOff() {
-  Serial.println("Pump off");
-  digitalWrite(pumpEnablePin, LOW);
-}
-
-int getBandgap() {
-  // https://forum.arduino.cc/t/low-battery-warning/360639/7
-
-  // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
-
-  // REFS0 off: Selects AREF, internal VRef turned off
-  // REFS0 on: Selects AVcc reference, with external cap at AREF
-  // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
-
-  // Internal AREF
-  /* ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1); */
-  // External AREF
-  ADMUX = bit(MUX3) | bit(MUX2) | bit(MUX1);
-
-  ADCSRA |= bit(ADSC);  // start conversion
-  while (ADCSRA & bit(ADSC)) {
-  }  // wait for conversion to complete
-  int results = (((InternalReferenceVoltage * 1024) / ADC) + 5) / 10;
-  return results;
-}
-
-void lowBatteryWarning() {
-
-}
-
-void manualLowPowerMode(uint8_t multiplier) {
-  delay(70);  // Requires at least 68ms of buffer head time for module booting time
-  for (int i=0; i<multiplier; i++) {
-    LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
-  }
-}
-
-void wakeUp() {
-  // Empty interrupt handler
-}
-
 
 // Reference
 // Find internal 1.1 reference voltage on AREF pin (external cap needed from AREF to GND)
