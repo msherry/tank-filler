@@ -1,7 +1,9 @@
-
 #include <LiquidCrystal_I2C.h>
 #include <LowPower.h>
 #include <Wire.h>
+
+#define DEBUG_ENABLE
+#include "DebugUtils.h"
 
 const int arefEnablePin = 2;
 const int sensorHighInputPin = 3;
@@ -20,6 +22,14 @@ const long InternalReferenceVoltage = 1109L;
 LiquidCrystal_I2C lcd(0x27,16,2);
 
 int displayCount = 0;           /* visual indication that we're running */
+
+typedef enum TankState {
+  TANK_FULL,
+  TANK_PARTIAL,
+  TANK_FILLING,
+} TankState;
+
+TankState tankState = TANK_FULL;
 
 void setup() {
   // put your setup code here, to run once:
@@ -45,28 +55,64 @@ void setup() {
   digitalWrite(arefEnablePin, HIGH);
 
   Serial.begin(9600);
+  DEBUGLN("Started");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  // Either power-down via interrupt and have a low water level trigger said
-  // interrupt, or poll every 8 seconds for water level. Interrupt sounds
-  // better for power saving.
-
-  // From https://docs.arduino.cc/learn/electronics/low-power
   int bandGap = getBandgap();
-  // displayBandgap(bandGap);
+  displayBandgap(bandGap);
 
   if (bandGap < 300) {
     lowBatteryWarning();
   }
 
-  if (waterTooLow()) {
-    fillTank();
+  runStateMachine();
+
+  if (tankState == TANK_FILLING) {
+    delay(2000);
+  } else {
+    manualLowPowerMode(2);
+  }
+}
+
+void runStateMachine() {
+  printTankState();
+
+  switch (tankState) {
+  case TANK_FULL:
+    if (tankFull()) {
+      // Still full
+      DEBUGLN("Still full");
+    } else {
+      DEBUGLN("Only partially full");
+      tankState = TANK_PARTIAL;
+    }
+    break;
+  case TANK_PARTIAL:
+    if (waterTooLow()) {
+      DEBUGLN("Too low, pump on");
+      tankState = TANK_FILLING;
+    } else {
+      DEBUGLN("Still partially full");
+    }
+    break;
+  case TANK_FILLING:
+    if (tankFull()) {
+      DEBUGLN("Now full, pump off");
+      tankState = TANK_FULL;
+    } else {
+      DEBUGLN("Still filling, pump still on");
+    }
+    break;
   }
 
-  manualLowPowerMode(1);
+  if (tankState == TANK_FILLING) {
+    pumpOn();
+  } else {
+    pumpOff();
+  }
 }
 
 int waterTooLow() {
@@ -89,43 +135,54 @@ int waterAtLowLevel() {
   return digitalRead(sensorLowInputPin);
 }
 
-void fillTank() {
-  pumpOn();
-  while(!tankFull()) {
-    delay(1000);
-  }
-  pumpOff();
-}
-
 void pumpOn() {
-  // Serial.println("Pump on");
+  DEBUGLN("Pump on");
   digitalWrite(pumpEnablePin, HIGH);
 }
 
 void pumpOff() {
-  // Serial.println("Pump off");
+  DEBUGLN("Pump off");
   digitalWrite(pumpEnablePin, LOW);
 }
 
 void lowBatteryWarning() {
+  DEBUGLN("Battery low");
   digitalWrite(alarmPin, HIGH);
   delay(10);
   digitalWrite(alarmPin, LOW);
 }
 
 void manualLowPowerMode(uint8_t multiplier) {
+  DEBUG("Sleeping... ");
   delay(70);  // Requires at least 68ms of buffer head time for module booting time
   for (int i=0; i<multiplier; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON);
   }
+  DEBUGLN("DONE");
 }
 
 void wakeUp() {
   // Empty interrupt handler
 }
 
+void printTankState() {
+  DEBUG("Tank state: ");
+  switch (tankState) {
+  case TANK_FULL:
+    DEBUGLN("TANK_FULL");
+    break;
+  case TANK_PARTIAL:
+    DEBUGLN("TANK_PARTIAL");
+    break;
+  case TANK_FILLING:
+    DEBUGLN("TANK_FILLING");
+    break;
+  }
+}
 
 int getBandgap() {
+  // https://docs.arduino.cc/learn/electronics/low-power
+
   // https://forum.arduino.cc/t/low-battery-warning/360639/7
 
   // https://forum.arduino.cc/t/measurement-of-bandgap-voltage/38215
@@ -147,8 +204,13 @@ int getBandgap() {
 }
 
 void displayBandgap(int bandGap) {
-  // Uses slow division, don't this function except for debugging
+  // Simple serial display
+  DEBUG("Bandgap: ");
+  DEBUGLN(bandGap);
+  return;
 
+  // Nice LCD display
+  // Uses slow division, don't this function except for debugging
   int voltInt = bandGap / 100;
   int voltFrac = bandGap % 100;
 
@@ -163,7 +225,7 @@ void displayBandgap(int bandGap) {
   lcd.print(voltage);
 
   char uptime[10];
-  unsigned long seconds = millis() / 1000; 
+  unsigned long seconds = millis() / 1000;
   unsigned int hours, mins;
 
   hours = seconds / 3600;
@@ -197,7 +259,7 @@ void displayBandgap(int bandGap) {
 /* void setup( void ) */
 /* { */
 /*   Serial.begin( 38400 ); */
-/*   Serial.println( "\r\n\r\n" ); */
+/*   DEBUGLN( "\r\n\r\n" ); */
 
 /*   // REFS1 REFS0          --> 0 0 AREF, Internal Vref turned off */
 /*   // MUX3 MUX2 MUX1 MUX0  --> 1110 1.1V (VBG) */
@@ -217,17 +279,17 @@ void displayBandgap(int bandGap) {
 /*   // Scale the value */
 /*   value = (((InternalReferenceVoltage * 1024L) / ADC) + 5L) / 10L; */
 
-/*   Serial.println( value ); */
+/*   DEBUGLN( value ); */
 /*   delay( 1000 ); */
 /* } */
 
 /*
 /dev/cu.usbmodem1421 - Arduino UNO, right usb port
 /dev/cu.usbmodem1411 - Arduino UNO, left usb port
-/dev/cu/wchusbserial1420 - Arduino NANO, right usb port
+/dev/cu.wchusbserial1420 - Arduino NANO, right usb port
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.usbmodem1421" */
-/* arduino-cli-default-fqbn: "arduino:avr:uno" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
+/* arduino-cli-default-fqbn: "arduino:avr:nano" */
 /* End: */
