@@ -83,7 +83,6 @@ void runStateMachine() {
   switch (tankState) {
   case TANK_FULL:
     if (tankFull()) {
-      // Still full
       DEBUGLN("Still full");
     } else {
       DEBUGLN("Only partially full");
