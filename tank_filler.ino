@@ -1,6 +1,4 @@
-#include <LiquidCrystal_I2C.h>
 #include <LowPower.h>
-#include <Wire.h>
 
 #define DEBUG_ENABLE
 #include "DebugUtils.h"
@@ -19,10 +17,6 @@ const int alarmPin = 6;
 /* Arduino UNO dev board */
 const long InternalReferenceVoltage = 1109L;
 
-LiquidCrystal_I2C lcd(0x27,16,2);
-
-int displayCount = 0;           /* visual indication that we're running */
-
 typedef enum TankState {
   TANK_FULL,
   TANK_PARTIAL,
@@ -30,14 +24,10 @@ typedef enum TankState {
 } TankState;
 
 TankState tankState = TANK_FULL;
+int waterAtHighLevel = 0, waterAtLowLevel = 0;
 
 void setup() {
   // put your setup code here, to run once:
-
-  lcd.init();
-  lcd.clear();
-  lcd.backlight();
-  // lcd.noBacklight();
 
   // Ensure pump is off before setting pin as an output
   pumpOff();
@@ -55,7 +45,7 @@ void setup() {
   digitalWrite(arefEnablePin, HIGH);
 
   Serial.begin(9600);
-  DEBUGLN("Started");
+  DEBUGLN("\n\n\n\nStarted");
 }
 
 void loop() {
@@ -68,13 +58,18 @@ void loop() {
     lowBatteryWarning();
   }
 
+  readSensors();
   runStateMachine();
 
+  Serial.flush();
   if (tankState == TANK_FILLING) {
-    delay(2000);
+    DEBUG("Sleeping... ");
+    delay(4000);
   } else {
-    manualLowPowerMode(2);
+    DEBUG("PowerDown... ");
+    manualLowPowerMode(8);
   }
+  DEBUGLN("DONE");
 }
 
 void runStateMachine() {
@@ -82,27 +77,36 @@ void runStateMachine() {
 
   switch (tankState) {
   case TANK_FULL:
+    beep(1, 500);
     if (tankFull()) {
+      beep(1, 100);
       DEBUGLN("Still full");
     } else {
+      beep(2, 100);
       DEBUGLN("Only partially full");
       tankState = TANK_PARTIAL;
     }
     break;
   case TANK_PARTIAL:
-    if (waterTooLow()) {
+    beep(2, 500);
+    if (!waterTooLow()) {
+      beep(1, 100);
+      DEBUGLN("Still partially full");
+    } else {
+      beep(2, 100);
       DEBUGLN("Too low, pump on");
       tankState = TANK_FILLING;
-    } else {
-      DEBUGLN("Still partially full");
     }
     break;
   case TANK_FILLING:
-    if (tankFull()) {
+    beep(3, 500);
+    if (!tankFull()) {
+      beep(1, 100);
+      DEBUGLN("Still filling, pump still on");
+    } else {
+      beep(2, 100);
       DEBUGLN("Now full, pump off");
       tankState = TANK_FULL;
-    } else {
-      DEBUGLN("Still filling, pump still on");
     }
     break;
   }
@@ -114,24 +118,49 @@ void runStateMachine() {
   }
 }
 
+void readSensors() {
+  // Values are 1 if the sensor (high or low) detects water, 0 otherwise
+
+  // If the pump is on, pause it to get clean readings
+  int pumpIsOn = isPumpOn();
+  if (pumpIsOn) {
+    pumpOff();
+    delay(250);
+  }
+
+  // Keep reading until we get consistent results
+  int oldHi=-1, oldLo=-1;
+
+  while (1) {
+    waterAtHighLevel = digitalRead(sensorHighInputPin);
+    waterAtLowLevel = digitalRead(sensorLowInputPin);
+
+    if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel)
+      break;
+
+    oldHi = waterAtHighLevel;
+    oldLo = waterAtLowLevel;
+    delay(250);
+  }
+
+  char out[64];
+  snprintf(out, 64, "High: %d  Low: %d", waterAtHighLevel, waterAtLowLevel);
+  DEBUGLN(out);
+
+  // Reenable the pump if we turned it off
+  if (pumpIsOn) {
+    pumpOn();
+  }
+}
+
 int waterTooLow() {
   // Return a 1 if the tank needs water added, 0 otherwise
-  return !waterAtLowLevel();
+  return !waterAtLowLevel;
 }
 
 int tankFull() {
   // Return a 1 if the tank is full (and we should stop the pump), 0 otherwise
-  return waterAtHighLevel();
-}
-
-int waterAtHighLevel() {
-  // Return a 1 if the water is at/above the HIGH level sensor, 0 otherwise
-  return digitalRead(sensorHighInputPin);
-}
-
-int waterAtLowLevel() {
-  // Return a 1 if the water is at/above the LOW level sensor, 0 otherwise
-  return digitalRead(sensorLowInputPin);
+  return waterAtHighLevel;
 }
 
 void pumpOn() {
@@ -144,20 +173,30 @@ void pumpOff() {
   digitalWrite(pumpEnablePin, LOW);
 }
 
+int isPumpOn() {
+  return digitalRead(pumpEnablePin);
+}
+
 void lowBatteryWarning() {
   DEBUGLN("Battery low");
-  digitalWrite(alarmPin, HIGH);
-  delay(10);
-  digitalWrite(alarmPin, LOW);
+  //beep(1, 20);
+}
+
+void beep(int count, int delay_ms) {
+  for (int i=0; i<count; i++) {
+    /* digitalWrite(alarmPin, HIGH); */
+    /* delay(6); */
+    /* digitalWrite(alarmPin, LOW); */
+    /* delay(200); */
+  }
+  delay(delay_ms);
 }
 
 void manualLowPowerMode(uint8_t multiplier) {
-  DEBUG("Sleeping... ");
   delay(70);  // Requires at least 68ms of buffer head time for module booting time
   for (int i=0; i<multiplier; i++) {
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON);
   }
-  DEBUGLN("DONE");
 }
 
 void wakeUp() {
@@ -175,6 +214,9 @@ void printTankState() {
     break;
   case TANK_FILLING:
     DEBUGLN("TANK_FILLING");
+    break;
+  default:
+    DEBUGLN("TANK_UNKNOWN");
     break;
   }
 }
@@ -207,42 +249,7 @@ void displayBandgap(int bandGap) {
   DEBUG("Bandgap: ");
   DEBUGLN(bandGap);
   return;
-
-  // Nice LCD display
-  // Uses slow division, don't this function except for debugging
-  int voltInt = bandGap / 100;
-  int voltFrac = bandGap % 100;
-
-  char voltage[16];
-  snprintf(voltage, 16, "%d.%02dv", voltInt, voltFrac);
-
-  lcd.setCursor(2,0);
-  lcd.print("Supply voltage:");
-  lcd.setCursor(2,1);
-  lcd.print("     ");           /* clear the line */
-  lcd.setCursor(2,1);
-  lcd.print(voltage);
-
-  char uptime[10];
-  unsigned long seconds = millis() / 1000;
-  unsigned int hours, mins;
-
-  hours = seconds / 3600;
-  seconds %= 3600;
-  mins = seconds / 60;
-  seconds = seconds % 60;
-
-  if (hours) {
-    snprintf(uptime, 10, "%u:%02u:%02lu", hours, mins, seconds);
-  } else {
-    snprintf(uptime, 10, "%02u:%02lu", mins, seconds);
-  }
-
-  lcd.setCursor(2,2);
-  lcd.print(uptime);
-
-  displayCount++;
-}
+ }
 
 // Reference
 // Find internal 1.1 reference voltage on AREF pin (external cap needed from AREF to GND)
@@ -286,9 +293,10 @@ void displayBandgap(int bandGap) {
 /dev/cu.usbmodem1421 - Arduino UNO, right usb port
 /dev/cu.usbmodem1411 - Arduino UNO, left usb port
 /dev/cu.wchusbserial1420 - Arduino NANO, right usb port
+/dev/cu.wchusbserial1410 - Arduino NANO, right usb port
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
-/* arduino-cli-default-fqbn: "arduino:avr:nano" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1410" */
+/* arduino-cli-default-fqbn: "arduino:avr:nano:cpu=atmega328old" */
 /* End: */
