@@ -67,7 +67,7 @@ void loop() {
     delay(4000);
   } else {
     DEBUG("PowerDown... ");
-    manualLowPowerMode(8);
+    manualLowPowerMode(2);
   }
   DEBUGLN("DONE");
 }
@@ -77,34 +77,34 @@ void runStateMachine() {
 
   switch (tankState) {
   case TANK_FULL:
-    beep(1, 500);
+    /* beep(1, 500); */
     if (tankFull()) {
-      beep(1, 100);
+      /* beep(1, 100); */
       DEBUGLN("Still full");
     } else {
-      beep(2, 100);
+      /* beep(2, 100); */
       DEBUGLN("Only partially full");
       tankState = TANK_PARTIAL;
     }
     break;
   case TANK_PARTIAL:
-    beep(2, 500);
+    /* beep(2, 500); */
     if (!waterTooLow()) {
-      beep(1, 100);
+      /* beep(1, 100); */
       DEBUGLN("Still partially full");
     } else {
-      beep(2, 100);
+      /* beep(2, 100); */
       DEBUGLN("Too low, pump on");
       tankState = TANK_FILLING;
     }
     break;
   case TANK_FILLING:
-    beep(3, 500);
+    /* beep(3, 500); */
     if (!tankFull()) {
-      beep(1, 100);
+      /* beep(1, 100); */
       DEBUGLN("Still filling, pump still on");
     } else {
-      beep(2, 100);
+      /* beep(2, 100); */
       DEBUGLN("Now full, pump off");
       tankState = TANK_FULL;
     }
@@ -119,10 +119,11 @@ void runStateMachine() {
 }
 
 void readSensors() {
+  // Sets waterAtHighLevel and waterAtLowLevel variables.
   // Values are 1 if the sensor (high or low) detects water, 0 otherwise
 
   // If the pump is on, pause it to get clean readings
-  int pumpIsOn = isPumpOn();
+  int pumpIsOn = tankState == TANK_FILLING;
   if (pumpIsOn) {
     pumpOff();
     delay(250);
@@ -130,13 +131,19 @@ void readSensors() {
 
   // Keep reading until we get consistent results
   int oldHi=-1, oldLo=-1;
+  int sameCount = 0;
 
-  while (1) {
+  while (sameCount < 3) {
+    // Sensors are pulled low when detecting water(?)
     waterAtHighLevel = digitalRead(sensorHighInputPin);
     waterAtLowLevel = digitalRead(sensorLowInputPin);
 
-    if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel)
-      break;
+    if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel) {
+      sameCount++;
+    }
+    else {
+      sameCount = 0;
+    }
 
     oldHi = waterAtHighLevel;
     oldLo = waterAtLowLevel;
@@ -179,15 +186,15 @@ int isPumpOn() {
 
 void lowBatteryWarning() {
   DEBUGLN("Battery low");
-  //beep(1, 20);
+  beep(1, 20);
 }
 
 void beep(int count, int delay_ms) {
   for (int i=0; i<count; i++) {
-    /* digitalWrite(alarmPin, HIGH); */
-    /* delay(6); */
-    /* digitalWrite(alarmPin, LOW); */
-    /* delay(200); */
+    digitalWrite(alarmPin, HIGH);
+    delay(6);
+    digitalWrite(alarmPin, LOW);
+    delay(200);
   }
   delay(delay_ms);
 }
@@ -195,7 +202,7 @@ void beep(int count, int delay_ms) {
 void manualLowPowerMode(uint8_t multiplier) {
   delay(70);  // Requires at least 68ms of buffer head time for module booting time
   for (int i=0; i<multiplier; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON);
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
   }
 }
 
