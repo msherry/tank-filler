@@ -4,10 +4,9 @@
 #include "DebugUtils.h"
 
 const int arefEnablePin = 2;
-const int sensorHighInputPin = 3;
-const int sensorLowInputPin = 4;
 const int pumpEnablePin = 5;
 const int alarmPin = 6;
+const int sensorInputPin = A6;
 
 
 /* This value is unique to each board, or at least each board family. Make a
@@ -36,13 +35,12 @@ void setup() {
   digitalWrite(alarmPin, LOW);
 
   pinMode(arefEnablePin, OUTPUT);
-  pinMode(sensorHighInputPin, INPUT_PULLUP);
-  pinMode(sensorLowInputPin, INPUT_PULLUP);
+  pinMode(sensorInputPin, INPUT);
   pinMode(pumpEnablePin, OUTPUT);
   pinMode(alarmPin, OUTPUT);
 
-  // Connect AREF directly to our (unregulated) input voltage
-  digitalWrite(arefEnablePin, HIGH);
+  // Disconnect AREF from the input voltage until we're ready to read
+  digitalWrite(arefEnablePin, LOW);
 
   Serial.begin(9600);
   DEBUGLN("\n\n\n\nStarted");
@@ -122,6 +120,11 @@ void readSensors() {
   // Sets waterAtHighLevel and waterAtLowLevel variables.
   // Values are 1 if the sensor (high or low) detects water, 0 otherwise
 
+  // We use the aref to measure battery voltage, so be sure we're back to
+  // normal here first.
+  analogReference(DEFAULT);
+  delay(70);
+
   // If the pump is on, pause it to get clean readings
   int pumpIsOn = tankState == TANK_FILLING;
   if (pumpIsOn) {
@@ -129,26 +132,33 @@ void readSensors() {
     delay(250);
   }
 
-  // Keep reading until we get consistent results
-  int oldHi=-1, oldLo=-1;
-  int sameCount = 0;
+  int result = analogRead(sensorInputPin);
+  DEBUG("Sensor: ");
+  DEBUGLN(result);
 
-  while (sameCount < 3) {
-    // Sensors are pulled low when detecting water(?)
-    waterAtHighLevel = digitalRead(sensorHighInputPin);
-    waterAtLowLevel = digitalRead(sensorLowInputPin);
+  waterAtHighLevel = result > 250;
+  waterAtLowLevel = result > 150;
 
-    if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel) {
-      sameCount++;
-    }
-    else {
-      sameCount = 0;
-    }
+  /* // Keep reading until we get consistent results */
+  /* int oldHi=-1, oldLo=-1; */
+  /* int sameCount = 0; */
 
-    oldHi = waterAtHighLevel;
-    oldLo = waterAtLowLevel;
-    delay(250);
-  }
+  /* while (sameCount < 3) { */
+  /*   // Sensors are pulled low when detecting water(?) */
+  /*   waterAtHighLevel = digitalRead(sensorHighInputPin); */
+  /*   waterAtLowLevel = digitalRead(sensorLowInputPin); */
+
+  /*   if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel) { */
+  /*     sameCount++; */
+  /*   } */
+  /*   else { */
+  /*     sameCount = 0; */
+  /*   } */
+
+  /*   oldHi = waterAtHighLevel; */
+  /*   oldLo = waterAtLowLevel; */
+  /*   delay(250); */
+  /* } */
 
   char out[64];
   snprintf(out, 64, "High: %d  Low: %d", waterAtHighLevel, waterAtLowLevel);
@@ -239,6 +249,10 @@ int getBandgap() {
   // REFS0 on: Selects AVcc reference, with external cap at AREF
   // MUX3 MUX2 MUX1: Selects 1.1v (VBG)
 
+  // Connect AREF directly to our (unregulated) input voltage
+  digitalWrite(arefEnablePin, HIGH);
+  delay(50);
+
   // Internal AREF
   /* ADMUX = bit(REFS0) | bit(MUX3) | bit(MUX2) | bit(MUX1); */
   // External AREF
@@ -248,6 +262,9 @@ int getBandgap() {
   while (ADCSRA & bit(ADSC)) {
   }  // wait for conversion to complete
   int results = (((InternalReferenceVoltage * 1024) / ADC) + 5) / 10;
+
+  // Disconnect AREF from power
+  digitalWrite(arefEnablePin, LOW);
   return results;
 }
 
