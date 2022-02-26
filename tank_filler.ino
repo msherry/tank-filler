@@ -61,7 +61,7 @@ void loop() {
   runStateMachine();
 
   Serial.flush();
-  doSleep();
+  doSleep(64, 4000);
 }
 
 void runStateMachine() {
@@ -120,29 +120,27 @@ void readSensors() {
   // We use the aref to measure battery voltage, so be sure we're back to
   // normal here first.
   analogReference(DEFAULT);
-  delay(70);
+  delay(250);
 
   int result = analogRead(sensorInputPin);
-  DEBUG("Sensor: ");
-  DEBUGLN(result);
-
   waterAtHighLevel = result > 250;
   waterAtLowLevel = result > 150;
 
   char out[64];
-  snprintf(out, 64, "High: %d  Low: %d", waterAtHighLevel, waterAtLowLevel);
+  snprintf(out, 64, "Reading:  %d   High: %d  Low: %d",
+      result, waterAtHighLevel, waterAtLowLevel);
   DEBUGLN(out);
 
   digitalWrite(sensorEnablePin, LOW);
 }
 
-void doSleep() {
+void doSleep(int powerDownTime, int sleepTime) {
   if (tankState == TANK_FILLING) {
     DEBUG("Sleeping... ");
-    delay(4000);
+    delay(sleepTime);
   } else {
     DEBUG("PowerDown... ");
-    manualLowPowerMode(64);
+    manualLowPowerMode(powerDownTime);
   }
   DEBUGLN("DONE");
 }
