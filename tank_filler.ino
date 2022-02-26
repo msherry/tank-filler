@@ -7,6 +7,7 @@ const int arefEnablePin = 2;
 const int pumpEnablePin = 5;
 const int alarmPin = 6;
 const int sensorInputPin = A6;
+const int sensorEnablePin = A7;
 
 /* This value is unique to each board, or at least each board family. Make a
  * measurement using the included sample program across a .1uF cap connected
@@ -36,6 +37,7 @@ void setup() {
   pinMode(arefEnablePin, OUTPUT);
   pinMode(sensorInputPin, INPUT);
   pinMode(pumpEnablePin, OUTPUT);
+  pinMode(sensorEnablePin, OUTPUT);
   pinMode(alarmPin, OUTPUT);
 
   // Disconnect AREF from the input voltage until we're ready to read
@@ -112,6 +114,9 @@ void readSensors() {
   // Sets waterAtHighLevel and waterAtLowLevel variables.
   // Values are 1 if the sensor (high or low) detects water, 0 otherwise
 
+  // The sensor is generally off to prevent corrosion
+  digitalWrite(sensorEnablePin, HIGH);
+
   // We use the aref to measure battery voltage, so be sure we're back to
   // normal here first.
   analogReference(DEFAULT);
@@ -127,6 +132,8 @@ void readSensors() {
   char out[64];
   snprintf(out, 64, "High: %d  Low: %d", waterAtHighLevel, waterAtLowLevel);
   DEBUGLN(out);
+
+  digitalWrite(sensorEnablePin, LOW);
 }
 
 void doSleep() {
