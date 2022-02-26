@@ -8,7 +8,6 @@ const int pumpEnablePin = 5;
 const int alarmPin = 6;
 const int sensorInputPin = A6;
 
-
 /* This value is unique to each board, or at least each board family. Make a
  * measurement using the included sample program across a .1uF cap connected
  * between AREF and GND, * 1000.
@@ -60,14 +59,7 @@ void loop() {
   runStateMachine();
 
   Serial.flush();
-  if (tankState == TANK_FILLING) {
-    DEBUG("Sleeping... ");
-    delay(4000);
-  } else {
-    DEBUG("PowerDown... ");
-    manualLowPowerMode(2);
-  }
-  DEBUGLN("DONE");
+  doSleep();
 }
 
 void runStateMachine() {
@@ -125,13 +117,6 @@ void readSensors() {
   analogReference(DEFAULT);
   delay(70);
 
-  // If the pump is on, pause it to get clean readings
-  int pumpIsOn = tankState == TANK_FILLING;
-  if (pumpIsOn) {
-    pumpOff();
-    delay(250);
-  }
-
   int result = analogRead(sensorInputPin);
   DEBUG("Sensor: ");
   DEBUGLN(result);
@@ -139,35 +124,20 @@ void readSensors() {
   waterAtHighLevel = result > 250;
   waterAtLowLevel = result > 150;
 
-  /* // Keep reading until we get consistent results */
-  /* int oldHi=-1, oldLo=-1; */
-  /* int sameCount = 0; */
-
-  /* while (sameCount < 3) { */
-  /*   // Sensors are pulled low when detecting water(?) */
-  /*   waterAtHighLevel = digitalRead(sensorHighInputPin); */
-  /*   waterAtLowLevel = digitalRead(sensorLowInputPin); */
-
-  /*   if (oldHi == waterAtHighLevel && oldLo == waterAtLowLevel) { */
-  /*     sameCount++; */
-  /*   } */
-  /*   else { */
-  /*     sameCount = 0; */
-  /*   } */
-
-  /*   oldHi = waterAtHighLevel; */
-  /*   oldLo = waterAtLowLevel; */
-  /*   delay(250); */
-  /* } */
-
   char out[64];
   snprintf(out, 64, "High: %d  Low: %d", waterAtHighLevel, waterAtLowLevel);
   DEBUGLN(out);
+}
 
-  // Reenable the pump if we turned it off
-  if (pumpIsOn) {
-    pumpOn();
+void doSleep() {
+  if (tankState == TANK_FILLING) {
+    DEBUG("Sleeping... ");
+    delay(4000);
+  } else {
+    DEBUG("PowerDown... ");
+    manualLowPowerMode(64);
   }
+  DEBUGLN("DONE");
 }
 
 int waterTooLow() {
