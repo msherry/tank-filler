@@ -6,8 +6,8 @@
 const int arefEnablePin = 2;
 const int pumpEnablePin = 5;
 const int alarmPin = 6;
+const int sensorEnablePin = 7;
 const int sensorInputPin = A6;
-const int sensorEnablePin = A7;
 
 /* This value is unique to each board, or at least each board family. Make a
  * measurement using the included sample program across a .1uF cap connected
@@ -122,9 +122,12 @@ void readSensors() {
   analogReference(DEFAULT);
   delay(250);
 
-  int result = analogRead(sensorInputPin);
-  waterAtHighLevel = result > 250;
-  waterAtLowLevel = result > 150;
+  int result;
+  for (int i = 0; i<3; i++) {
+     result = analogRead(sensorInputPin);
+  }
+  waterAtHighLevel = result > 120;
+  waterAtLowLevel = result > 90;
 
   char out[64];
   snprintf(out, 64, "Reading:  %d   High: %d  Low: %d",
@@ -296,6 +299,6 @@ void displayBandgap(int bandGap) {
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.wchusbserial1410" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
 /* arduino-cli-default-fqbn: "arduino:avr:nano:cpu=atmega328old" */
 /* End: */
