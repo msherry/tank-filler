@@ -126,8 +126,8 @@ void readSensors() {
   for (int i = 0; i<3; i++) {
      result = analogRead(sensorInputPin);
   }
-  waterAtHighLevel = result > 120;
-  waterAtLowLevel = result > 90;
+  waterAtHighLevel = result > 200;
+  waterAtLowLevel = result > 160;
 
   char out[64];
   snprintf(out, 64, "Reading:  %d   High: %d  Low: %d",
@@ -299,6 +299,6 @@ void displayBandgap(int bandGap) {
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1410" */
 /* arduino-cli-default-fqbn: "arduino:avr:nano:cpu=atmega328old" */
 /* End: */
