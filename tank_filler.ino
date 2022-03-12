@@ -3,6 +3,9 @@
 #define DEBUG_ENABLE
 #include "DebugUtils.h"
 
+const int SENSOR_VALUE_HIGH = 420;
+const int SENSOR_VALUE_LOW = 100;
+
 const int arefEnablePin = 2;
 const int pumpEnablePin = 5;
 const int alarmPin = 6;
@@ -126,8 +129,8 @@ void readSensors() {
   for (int i = 0; i<3; i++) {
      result = analogRead(sensorInputPin);
   }
-  waterAtHighLevel = result > 200;
-  waterAtLowLevel = result > 160;
+  waterAtHighLevel = result > SENSOR_VALUE_HIGH;
+  waterAtLowLevel = result > SENSOR_VALUE_LOW;
 
   char out[64];
   snprintf(out, 64, "Reading:  %d   High: %d  Low: %d",
@@ -295,7 +298,7 @@ void displayBandgap(int bandGap) {
 /dev/cu.usbmodem1421 - Arduino UNO, right usb port
 /dev/cu.usbmodem1411 - Arduino UNO, left usb port
 /dev/cu.wchusbserial1420 - Arduino NANO, right usb port
-/dev/cu.wchusbserial1410 - Arduino NANO, right usb port
+/dev/cu.wchusbserial1410 - Arduino NANO, left usb port
 */
 
 /* Local Variables: */
