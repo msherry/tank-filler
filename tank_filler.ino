@@ -4,7 +4,7 @@
 #include "DebugUtils.h"
 
 const int SENSOR_VALUE_HIGH = 420;
-const int SENSOR_VALUE_LOW = 100;
+const int SENSOR_VALUE_LOW = 150;
 
 const int arefEnablePin = 2;
 const int pumpEnablePin = 5;
@@ -302,6 +302,6 @@ void displayBandgap(int bandGap) {
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.wchusbserial1410" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
 /* arduino-cli-default-fqbn: "arduino:avr:nano:cpu=atmega328old" */
 /* End: */
