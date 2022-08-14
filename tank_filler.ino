@@ -12,6 +12,9 @@ const int alarmPin = 6;
 const int sensorEnablePin = 7;
 const int sensorInputPin = A6;
 
+/* How long has the pump been on? */
+int fillingCount = 0;
+
 /* This value is unique to each board, or at least each board family. Make a
  * measurement using the included sample program across a .1uF cap connected
  * between AREF and GND, * 1000.
@@ -81,6 +84,7 @@ void runStateMachine() {
       DEBUGLN("Only partially full");
       tankState = TANK_PARTIAL;
     }
+    fillingCount = 0;
     break;
   case TANK_PARTIAL:
     /* beep(2, 500); */
@@ -92,12 +96,19 @@ void runStateMachine() {
       DEBUGLN("Too low, pump on");
       tankState = TANK_FILLING;
     }
+    fillingCount = 0;
     break;
   case TANK_FILLING:
     /* beep(3, 500); */
+    fillingCount++;
     if (!tankFull()) {
       /* beep(1, 100); */
-      DEBUGLN("Still filling, pump still on");
+      if (fillingCount > 20) {
+        DEBUGLN("Filling too long, pump off");
+        tankState = TANK_FULL;
+      } else {
+        DEBUGLN("Still filling, pump still on");
+      }
     } else {
       /* beep(2, 100); */
       DEBUGLN("Now full, pump off");
@@ -302,6 +313,6 @@ void displayBandgap(int bandGap) {
 */
 
 /* Local Variables: */
-/* arduino-cli-default-port: "/dev/cu.wchusbserial1420" */
+/* arduino-cli-default-port: "/dev/cu.wchusbserial1410" */
 /* arduino-cli-default-fqbn: "arduino:avr:nano:cpu=atmega328old" */
 /* End: */
