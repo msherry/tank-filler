@@ -22,6 +22,12 @@ int fillingCount = 0;
 /* Arduino UNO dev board */
 const long InternalReferenceVoltage = 1109L;
 
+/* How many sleep periods (usually SLEEP_8S) to sleep between polls when not actively filling */
+const int SLEEP_COUNT_INACTIVE = 64;
+
+/* How many milliseconds to sleep between polls during active filling */
+const int SLEEP_MS_ACTIVE = 4000;
+
 typedef enum TankState {
   TANK_FULL,
   TANK_PARTIAL,
@@ -67,7 +73,7 @@ void loop() {
   runStateMachine();
 
   Serial.flush();
-  doSleep(64, 4000);
+  doSleep(SLEEP_COUNT_INACTIVE, SLEEP_MS_ACTIVE);
 }
 
 void runStateMachine() {
